@@ -52,5 +52,9 @@ export const milkService = {
       date: new Date(tx.date),
     }));
   },
+
+  deleteTransaction: async (id: string): Promise<void> => {
+    await apiClient.delete(`/milk/${id}`);
+  },
 };
 

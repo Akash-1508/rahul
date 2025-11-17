@@ -4,6 +4,7 @@ import { router as animalsRouter } from "./animals";
 import { router as milkRouter } from "./milk";
 import { router as charaRouter } from "./chara";
 import { router as reportsRouter } from "./reports";
+import { router as usersRouter } from "./users";
 
 export const appRouter = Router();
 
@@ -12,6 +13,7 @@ appRouter.use("/animals", animalsRouter);
 appRouter.use("/milk", milkRouter);
 appRouter.use("/chara", charaRouter);
 appRouter.use("/reports", reportsRouter);
+appRouter.use("/users", usersRouter);
 
 export function registerRoutes(app: Express) {
   app.use(appRouter);

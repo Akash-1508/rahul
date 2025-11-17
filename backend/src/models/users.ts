@@ -77,4 +77,15 @@ export async function addUser(user: Omit<User, "_id" | "createdAt" | "updatedAt"
   return insertedUser;
 }
 
+export async function getUsersByRole(role: UserRoleCode): Promise<User[]> {
+  const db = getDb();
+  const users = await db.collection<User>(COLLECTION_NAME)
+    .find({ 
+      role: role,
+      isActive: true 
+    })
+    .toArray();
+  return users;
+}
+
 

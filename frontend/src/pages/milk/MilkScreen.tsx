@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { MilkTransaction } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { milkService } from '../../services/milk/milkService';
+import { userService, User } from '../../services/users/userService';
 
 type ScreenType =
   | 'Dashboard'
@@ -43,6 +44,7 @@ interface Contact {
 export default function MilkScreen({ onNavigate, onLogout }: MilkScreenProps) {
   const [transactionType, setTransactionType] = useState<TransactionType>('purchase');
   const [transactions, setTransactions] = useState<MilkTransaction[]>([]);
+  const [users, setUsers] = useState<User[]>([]); // Users with role 2
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showContactDropdown, setShowContactDropdown] = useState(false);
@@ -59,10 +61,22 @@ export default function MilkScreen({ onNavigate, onLogout }: MilkScreenProps) {
     notes: '',
   });
 
-  // Load transactions on mount
+  // Load transactions and users on mount
   useEffect(() => {
     loadTransactions();
+    loadUsers();
   }, []);
+
+  const loadUsers = async () => {
+    try {
+      // Load users with role 2 (Consumer)
+      const data = await userService.getUsersByRole(2);
+      setUsers(data);
+    } catch (error: any) {
+      console.error('Failed to load users:', error);
+      // Don't show alert for users, just log error
+    }
+  };
 
   const loadTransactions = async () => {
     try {
@@ -77,39 +91,53 @@ export default function MilkScreen({ onNavigate, onLogout }: MilkScreenProps) {
     }
   };
 
-  // Get unique contacts from transactions
-  const getContacts = (): Contact[] => {
-    const contactsMap = new Map<string, Contact>();
-
-    transactions
-      .filter((t) => t.type === transactionType)
-      .forEach((transaction) => {
-        const name = transactionType === 'sale' ? transaction.buyer : transaction.seller;
-        const phone = transactionType === 'sale' ? transaction.buyerPhone : transaction.sellerPhone;
-        
-        if (name) {
-          const key = phone ? `${name}|${phone}` : name;
-          if (!contactsMap.has(key)) {
-            contactsMap.set(key, { name, phone });
-          }
-        }
-      });
-
-    return Array.from(contactsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  };
-
-  const contacts = getContacts();
+  // Get contacts from users with role 2 (optimized with useMemo)
+  const contacts = useMemo((): Contact[] => {
+    // Convert users to contacts format
+    return users
+      .map((user) => ({
+        name: user.name,
+        phone: user.mobile,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [users]);
 
   const handleAddTransaction = async () => {
+    // Validation
     if (!formData.quantity || !formData.pricePerLiter || !formData.contactName) {
       Alert.alert('Error', 'Please fill all required fields');
       return;
     }
 
+    const quantity = parseFloat(formData.quantity);
+    const pricePerLiter = parseFloat(formData.pricePerLiter);
+
+    // Better validation
+    if (isNaN(quantity) || quantity <= 0) {
+      Alert.alert('Error', 'Please enter a valid quantity (greater than 0)');
+      return;
+    }
+
+    if (isNaN(pricePerLiter) || pricePerLiter <= 0) {
+      Alert.alert('Error', 'Please enter a valid price per liter (greater than 0)');
+      return;
+    }
+
+    // Date validation
+    const selectedDate = new Date(formData.date);
+    if (isNaN(selectedDate.getTime())) {
+      Alert.alert('Error', 'Please enter a valid date');
+      return;
+    }
+
+    // Phone validation (optional but check format if provided)
+    if (formData.contactPhone && formData.contactPhone.length < 10) {
+      Alert.alert('Error', 'Please enter a valid phone number (at least 10 digits)');
+      return;
+    }
+
     try {
       setLoading(true);
-      const quantity = parseFloat(formData.quantity);
-      const pricePerLiter = parseFloat(formData.pricePerLiter);
       const totalAmount = quantity * pricePerLiter;
 
       const transactionData: Omit<MilkTransaction, '_id'> = {
@@ -166,7 +194,7 @@ export default function MilkScreen({ onNavigate, onLogout }: MilkScreenProps) {
     // Form already has input fields, user can type new contact
   };
 
-  const handleDelete = (_id: string) => {
+  const handleDelete = async (_id: string) => {
     Alert.alert(
       `Delete ${transactionType === 'sale' ? 'Sale' : 'Purchase'}`,
       `Are you sure you want to delete this ${transactionType === 'sale' ? 'sale' : 'purchase'} record?`,
@@ -175,9 +203,18 @@ export default function MilkScreen({ onNavigate, onLogout }: MilkScreenProps) {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setTransactions(transactions.filter((t) => t._id !== _id));
-            Alert.alert('Success', `${transactionType === 'sale' ? 'Sale' : 'Purchase'} record deleted!`);
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await milkService.deleteTransaction(_id);
+              await loadTransactions(); // Reload from database
+              Alert.alert('Success', `${transactionType === 'sale' ? 'Sale' : 'Purchase'} record deleted!`);
+            } catch (error: any) {
+              console.error('Failed to delete transaction:', error);
+              Alert.alert('Error', error.message || 'Failed to delete transaction. Please try again.');
+            } finally {
+              setLoading(false);
+            }
           },
         },
       ]
@@ -516,7 +553,7 @@ export default function MilkScreen({ onNavigate, onLogout }: MilkScreenProps) {
                 {/* Individual Transactions for the Day */}
                 {dayGroup.transactions.map((transaction) => (
                   <View key={transaction._id} style={styles.transactionCard}>
-                    <View style={styles.transactionHeader}>
+                    {/* <View style={styles.transactionHeader}>
                       <View style={styles.transactionHeaderLeft}>
                         <Text style={styles.transactionTime}>
                           {new Date(transaction.date).toLocaleTimeString('en-US', {
@@ -534,7 +571,7 @@ export default function MilkScreen({ onNavigate, onLogout }: MilkScreenProps) {
                       >
                         <Text style={styles.deleteButtonText}>Delete</Text>
                       </TouchableOpacity>
-                    </View>
+                    </View> */}
                     <View style={styles.transactionDetails}>
                       <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>{transaction.type === 'sale' ? 'Buyer:' : 'Seller:'}</Text>
