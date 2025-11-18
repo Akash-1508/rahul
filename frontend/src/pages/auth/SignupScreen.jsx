@@ -60,6 +60,12 @@ export default function SignupScreen({ onNavigate }) {
       return;
     }
 
+    // Validate address if provided
+    if (address && address.trim().length > 0 && address.trim().length < 2) {
+      Alert.alert('Error', 'Address must be at least 2 characters if provided');
+      return;
+    }
+
     try {
       setLoading(true);
       await authService.signup(
@@ -68,7 +74,7 @@ export default function SignupScreen({ onNavigate }) {
         password,
         mobile.trim(),
         gender || undefined,
-        address.trim() || undefined
+        address && address.trim().length >= 2 ? address.trim() : undefined
       );
       Alert.alert('Success', 'Account created. Please login.');
       onNavigate?.('Login/Signup');

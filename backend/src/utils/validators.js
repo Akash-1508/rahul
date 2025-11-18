@@ -35,8 +35,8 @@ const signupSchema = z.object({
     .string()
     .optional()
     .refine(
-      (val) => !val || val.trim().length >= 5,
-      "Address must be at least 5 characters if provided"
+      (val) => !val || val.trim().length >= 2,
+      "Address must be at least 2 characters if provided"
     ),
   otp: z
     .string()
