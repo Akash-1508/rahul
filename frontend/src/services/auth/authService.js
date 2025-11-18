@@ -1,0 +1,49 @@
+/**
+ * Authentication Service
+ * Handle user login, signup, and authentication
+ */
+
+import { apiClient, setAuthToken } from '../api/apiClient';
+
+export const authService = {
+  login: async (emailOrMobile, password) => {
+    const res = await apiClient.post('/auth/login', { emailOrMobile, password });
+    if (res?.token) {
+      setAuthToken(res.token);
+    }
+    return res.user;
+  },
+
+  signup: async (
+    name,
+    email,
+    password,
+    mobile,
+    gender,
+    address,
+    milkFixedPrice,
+    dailyMilkQuantity
+  ) => {
+    const res = await apiClient.post('/auth/signup', {
+      name,
+      email,
+      password,
+      mobile,
+      gender,
+      address,
+      milkFixedPrice,
+      dailyMilkQuantity,
+    });
+    return res;
+  },
+
+  logout: async () => {
+    setAuthToken(null);
+  },
+
+  getCurrentUser: async () => {
+    // No persistent storage yet; return null in this simple client
+    return null;
+  },
+};
+

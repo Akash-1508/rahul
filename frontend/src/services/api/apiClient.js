@@ -1,0 +1,70 @@
+/**
+ * API Client
+ * Base configuration for API calls
+ */
+
+import { API_BASE_URL as ENV_API_BASE_URL } from '@env';
+
+if (!ENV_API_BASE_URL || typeof ENV_API_BASE_URL !== 'string' || !ENV_API_BASE_URL.trim()) {
+  throw new Error('API_BASE_URL is not set. Define it in frontend/.env');
+}
+const API_BASE_URL = ENV_API_BASE_URL.trim();
+
+let authToken = null;
+
+export function setAuthToken(token) {
+  authToken = token;
+}
+
+async function request(method, endpoint, data) {
+  const headers = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  const url = `${API_BASE_URL}${endpoint}`;
+  console.log(`[apiClient] ${method} ${url}`, { hasToken: !!authToken, data });
+  
+  try {
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    
+    const text = await res.text();
+    console.log(`[apiClient] Response status: ${res.status}`, { text: text.substring(0, 200) });
+    
+    const json = text ? JSON.parse(text) : null;
+    
+    if (!res.ok) {
+      const message = json?.error || res.statusText || 'Request failed';
+      console.error(`[apiClient] Request failed:`, { status: res.status, message, json });
+      throw new Error(typeof message === 'string' ? message : 'Request failed');
+    }
+    
+    return json;
+  } catch (error) {
+    console.error(`[apiClient] Request error:`, error);
+    throw error;
+  }
+}
+
+export const apiClient = {
+  get: async (endpoint) => {
+    return request('GET', endpoint);
+  },
+  post: async (endpoint, data) => {
+    return request('POST', endpoint, data);
+  },
+  put: async (endpoint, data) => {
+    return request('PUT', endpoint, data);
+  },
+  delete: async (endpoint) => {
+    return request('DELETE', endpoint);
+  },
+};
+

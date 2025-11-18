@@ -1,12 +1,11 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "RDF Backend (Node + Express + TypeScript)",
-  "main": "dist/server.js",
+  "description": "RDF Backend (Node + Express)",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "dev": "node src/server.js",
+    "start": "node src/server.js",
     "lint": "echo \"No linter configured\"",
     "test": "echo \"No tests yet\""
   },
@@ -19,18 +18,9 @@
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "mongodb": "^7.0.0",
+    "mongoose": "^8.20.0",
     "morgan": "^1.10.0",
     "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/morgan": "^1.9.7",
-    "@types/node": "^22.7.5",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.6.3"
   },
   "engines": {
     "node": ">=20"
