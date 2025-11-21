@@ -1,3 +1,240 @@
+const { MilkTransaction } = require("../models/milk");
+const { CharaPurchase } = require("../models/chara");
+const { User, UserRoles } = require("../models/users");
+
+const TREND_PERIOD_LABELS = {
+  weekly: "Weekly",
+  monthly: "Monthly",
+  yearly: "Yearly"
+};
+
+const trendLabelFormatters = {
+  weekly: new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }),
+  monthly: new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }),
+  yearly: new Intl.DateTimeFormat("en-IN", { month: "short" })
+};
+
+function getUtcDayRange(reference = new Date()) {
+  const start = new Date(
+    Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth(), reference.getUTCDate())
+  );
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  end.setUTCMilliseconds(end.getUTCMilliseconds() - 1);
+  return { start, end };
+}
+
+function normalizeBuyerMobile(mobile) {
+  const trimmed = mobile?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function createDateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatMetadataDate(date, unit) {
+  if (unit === "month") {
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+  return createDateKey(date);
+}
+
+function getTrendConfig(period, todayRange) {
+  const normalizedPeriod = TREND_PERIOD_LABELS[period] ? period : "weekly";
+  const label = TREND_PERIOD_LABELS[normalizedPeriod];
+  const end = todayRange.end;
+  if (normalizedPeriod === "monthly") {
+    const start = new Date(todayRange.start);
+    start.setUTCDate(start.getUTCDate() - 29);
+    return {
+      period: normalizedPeriod,
+      label,
+      unit: "day",
+      length: 30,
+      start,
+      end,
+      formatter: trendLabelFormatters.monthly
+    };
+  }
+
+  if (normalizedPeriod === "yearly") {
+    const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+    start.setUTCMonth(start.getUTCMonth() - 11);
+    return {
+      period: normalizedPeriod,
+      label,
+      unit: "month",
+      length: 12,
+      start,
+      end,
+      formatter: trendLabelFormatters.yearly
+    };
+  }
+
+  const start = new Date(todayRange.start);
+  start.setUTCDate(start.getUTCDate() - 6);
+  return {
+    period: normalizedPeriod,
+    label,
+    unit: "day",
+    length: 7,
+    start,
+    end,
+    formatter: trendLabelFormatters.weekly
+  };
+}
+
+function getMonthRange(year, month) {
+  const normalizedYear =
+    Number.isFinite(Number(year)) && Number(year) > 0
+      ? Number(year)
+      : new Date().getUTCFullYear();
+  const normalizedMonth =
+    Number.isFinite(Number(month)) && Number(month) >= 1 && Number(month) <= 12
+      ? Number(month)
+      : new Date().getUTCMonth() + 1;
+  const start = new Date(Date.UTC(normalizedYear, normalizedMonth - 1, 1));
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  end.setUTCMilliseconds(end.getUTCMilliseconds() - 1);
+  return {
+    year: normalizedYear,
+    month: normalizedMonth,
+    start,
+    end
+  };
+}
+
+function escapeCsvField(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  const stringValue = String(value);
+  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  return stringValue;
+}
+
+function getBuyerFilterStages(buyerMobile) {
+  if (!buyerMobile) {
+    return [];
+  }
+  return [
+    {
+      $addFields: {
+        normalizedBuyerPhone: {
+          $trim: {
+            input: { $ifNull: ["$buyerPhone", ""] }
+          }
+        }
+      }
+    },
+    {
+      $match: {
+        normalizedBuyerPhone: buyerMobile
+      }
+    }
+  ];
+}
+
+function buildTrendSeries(rawTrend, { start, length, unit, formatter }) {
+  const rawTrendMap = new Map(rawTrend.map((entry) => [entry._id, entry]));
+  const series = [];
+  for (let i = 0; i < length; i += 1) {
+    const current = new Date(start);
+    if (unit === "month") {
+      current.setUTCMonth(current.getUTCMonth() + i);
+    } else {
+      current.setUTCDate(current.getUTCDate() + i);
+    }
+    const key =
+      unit === "month"
+        ? `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`
+        : createDateKey(current);
+    const rawEntry = rawTrendMap.get(key);
+    const totalQuantity = Number(rawEntry?.totalQuantity ?? 0);
+    const totalAmount = Number(rawEntry?.totalAmount ?? 0);
+    series.push({
+      date: key,
+      label: formatter.format(current),
+      totalQuantity,
+      totalAmount
+    });
+  }
+  return series;
+}
+
+async function aggregateTrendData({ start, end, unit, buyerMobile }) {
+  const format = unit === "month" ? "%Y-%m" : "%Y-%m-%d";
+  const pipeline = [
+    {
+      $match: {
+        type: "sale",
+        date: { $gte: start, $lte: end }
+      }
+    },
+    ...getBuyerFilterStages(buyerMobile),
+    {
+      $addFields: {
+        dateKey: {
+          $dateToString: {
+            format,
+            date: "$date"
+          }
+        }
+      }
+    },
+    {
+      $group: {
+        _id: "$dateKey",
+        totalQuantity: { $sum: "$quantity" },
+        totalAmount: { $sum: "$totalAmount" }
+      }
+    },
+    {
+      $sort: {
+        _id: 1
+      }
+    }
+  ];
+  return MilkTransaction.aggregate(pipeline);
+}
+
+async function aggregateBuyerStats({ start, end, buyerMobile }) {
+  if (!buyerMobile) {
+    return null;
+  }
+  const pipeline = [
+    {
+      $match: {
+        type: "sale",
+        date: { $gte: start, $lte: end }
+      }
+    },
+    ...getBuyerFilterStages(buyerMobile),
+    {
+      $group: {
+        _id: null,
+        totalQuantity: { $sum: "$quantity" },
+        totalAmount: { $sum: "$totalAmount" },
+        transactionCount: { $sum: 1 }
+      }
+    }
+  ];
+  const [result] = await MilkTransaction.aggregate(pipeline);
+  return result;
+}
+
+function toStat(entry) {
+  return {
+    quantity: Number(entry?.totalQuantity ?? 0),
+    amount: Number(entry?.totalAmount ?? 0),
+    transactions: Number(entry?.transactionCount ?? 0)
+  };
+}
+
 const getProfitLoss = (req, res) => {
   const period = String(req.query.period || "monthly");
   const report = {
@@ -18,5 +255,338 @@ const getProfitLoss = (req, res) => {
   return res.json(report);
 };
 
-module.exports = { getProfitLoss };
+async function getDashboardSummary(req, res) {
+  try {
+    const todayRange = getUtcDayRange(new Date());
+    const trendPeriod = String(req.query.trendPeriod || "weekly").toLowerCase();
+    const normalizedTrend = TREND_PERIOD_LABELS[trendPeriod]
+      ? trendPeriod
+      : "weekly";
+    const trendConfig = getTrendConfig(normalizedTrend, todayRange);
+    const monthlyStart = new Date(
+      Date.UTC(todayRange.start.getUTCFullYear(), todayRange.start.getUTCMonth(), 1)
+    );
+
+    const normalizedBuyerMobile = normalizeBuyerMobile(req.query.buyerMobile);
+
+    const [charaDailyResult] = await CharaPurchase.aggregate([
+      {
+        $match: {
+          date: { $gte: todayRange.start, $lte: todayRange.end }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: "$totalAmount" }
+        }
+      }
+    ]);
+
+    const [milkDailyExpenseResult] = await MilkTransaction.aggregate([
+      {
+        $match: {
+          type: "purchase",
+          date: { $gte: todayRange.start, $lte: todayRange.end }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: "$totalAmount" }
+        }
+      }
+    ]);
+
+    const [dailySalesResult] = await MilkTransaction.aggregate([
+      {
+        $match: {
+          type: "sale",
+          date: { $gte: todayRange.start, $lte: todayRange.end }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalQuantity: { $sum: "$quantity" },
+          totalAmount: { $sum: "$totalAmount" },
+          transactionCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const [monthlySalesResult] = await MilkTransaction.aggregate([
+      {
+        $match: {
+          type: "sale",
+          date: { $gte: monthlyStart, $lte: todayRange.end }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalQuantity: { $sum: "$quantity" },
+          totalAmount: { $sum: "$totalAmount" },
+          transactionCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const userConsumptionAgg = await MilkTransaction.aggregate([
+      {
+        $match: {
+          type: "sale",
+          date: { $gte: monthlyStart, $lte: todayRange.end }
+        }
+      },
+      {
+        $addFields: {
+          normalizedBuyerPhone: {
+            $trim: {
+              input: { $ifNull: ["$buyerPhone", ""] }
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          normalizedBuyerPhone: { $ne: "" }
+        }
+      },
+      {
+        $group: {
+          _id: "$normalizedBuyerPhone",
+          totalQuantity: { $sum: "$quantity" },
+          totalAmount: { $sum: "$totalAmount" }
+        }
+      },
+      {
+        $sort: {
+          totalQuantity: -1,
+          totalAmount: -1
+        }
+      }
+    ]);
+
+    const rawTrend = await aggregateTrendData({
+      start: trendConfig.start,
+      end: trendConfig.end,
+      unit: trendConfig.unit
+    });
+
+    const trendSeries = buildTrendSeries(rawTrend, trendConfig);
+
+    const consumerPhones = userConsumptionAgg.map((entry) => entry._id);
+    const consumers = await User.find({
+      mobile: { $in: consumerPhones },
+      role: UserRoles.CONSUMER
+    }).select("name mobile");
+
+    const consumerLookup = new Map(consumers.map((user) => [user.mobile, user]));
+    const userConsumptions = userConsumptionAgg.map((entry) => {
+      const user = consumerLookup.get(entry._id);
+      const quantity = Number(entry.totalQuantity ?? 0);
+      const totalAmount = Number(entry.totalAmount ?? 0);
+      return {
+        userId: user?._id?.toString(),
+        name: user?.name || "Unknown Buyer",
+        mobile: entry._id,
+        totalQuantity: quantity,
+        totalAmount,
+        averageRate: quantity ? totalAmount / quantity : 0
+      };
+    });
+
+    let selectedBuyer = null;
+    if (normalizedBuyerMobile) {
+      const buyerUser = await User.findOne({
+        mobile: normalizedBuyerMobile,
+        role: UserRoles.CONSUMER
+      }).select("name mobile");
+
+      const buyerDailyStats = await aggregateBuyerStats({
+        start: todayRange.start,
+        end: todayRange.end,
+        buyerMobile: normalizedBuyerMobile
+      });
+
+      const buyerMonthlyStats = await aggregateBuyerStats({
+        start: monthlyStart,
+        end: todayRange.end,
+        buyerMobile: normalizedBuyerMobile
+      });
+
+      const buyerTrendRaw = await aggregateTrendData({
+        start: trendConfig.start,
+        end: trendConfig.end,
+        unit: trendConfig.unit,
+        buyerMobile: normalizedBuyerMobile
+      });
+
+      const buyerTrendSeries = buildTrendSeries(buyerTrendRaw, trendConfig);
+
+      const averageRate = buyerMonthlyStats?.totalQuantity
+        ? Number(buyerMonthlyStats.totalAmount) / Number(buyerMonthlyStats.totalQuantity)
+        : 0;
+
+      selectedBuyer = {
+        userId: buyerUser?._id?.toString(),
+        name: buyerUser?.name || "Unknown Buyer",
+        mobile: normalizedBuyerMobile,
+        dailySales: toStat(buyerDailyStats),
+        monthlySales: toStat(buyerMonthlyStats),
+        trend: buyerTrendSeries,
+        averageRate
+      };
+    }
+
+    const dashboardSummary = {
+      generatedAt: new Date().toISOString(),
+      dailyExpenses: Number(
+        (charaDailyResult?.totalAmount ?? 0) + (milkDailyExpenseResult?.totalAmount ?? 0)
+      ),
+      dailyExpenseBreakdown: {
+        charaPurchases: Number(charaDailyResult?.totalAmount ?? 0),
+        milkPurchases: Number(milkDailyExpenseResult?.totalAmount ?? 0)
+      },
+      dailySales: {
+        quantity: Number(dailySalesResult?.totalQuantity ?? 0),
+        amount: Number(dailySalesResult?.totalAmount ?? 0),
+        transactions: Number(dailySalesResult?.transactionCount ?? 0)
+      },
+      monthlySales: {
+        quantity: Number(monthlySalesResult?.totalQuantity ?? 0),
+        amount: Number(monthlySalesResult?.totalAmount ?? 0),
+        transactions: Number(monthlySalesResult?.transactionCount ?? 0)
+      },
+      userConsumptions,
+      salesTrend: trendSeries,
+      selectedBuyer,
+      trendMetadata: {
+        period: trendConfig.period,
+        periodLabel: trendConfig.label,
+        unit: trendConfig.unit,
+        length: trendConfig.length,
+        startDate: formatMetadataDate(trendConfig.start, trendConfig.unit),
+        endDate: formatMetadataDate(trendConfig.end, trendConfig.unit)
+      }
+    };
+
+    return res.json(dashboardSummary);
+  } catch (error) {
+    console.error("[reports] Failed to fetch dashboard summary:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch dashboard summary", message: error.message });
+  }
+}
+
+async function downloadBuyerConsumptionCsv(req, res) {
+  try {
+    const todayRange = getUtcDayRange(new Date());
+    const periodRange = getMonthRange(req.query.year, req.query.month);
+    const normalizedBuyerMobile = normalizeBuyerMobile(req.query.buyerMobile);
+
+    const matchStage = {
+      type: "sale",
+      date: { $gte: periodRange.start, $lte: periodRange.end }
+    };
+
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $addFields: {
+          normalizedBuyerPhone: {
+            $trim: {
+              input: { $ifNull: ["$buyerPhone", ""] }
+            }
+          }
+        }
+      }
+    ];
+
+    if (normalizedBuyerMobile) {
+      pipeline.push({
+        $match: { normalizedBuyerPhone: normalizedBuyerMobile }
+      });
+    }
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "users",
+          localField: "normalizedBuyerPhone",
+          foreignField: "mobile",
+          as: "buyerUser"
+        }
+      },
+      {
+        $unwind: {
+          path: "$buyerUser",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          date: 1,
+          quantity: 1,
+          pricePerLiter: 1,
+          totalAmount: 1,
+          buyerName: {
+            $ifNull: ["$buyerUser.name", "Unknown Buyer"]
+          },
+          buyerMobile: "$normalizedBuyerPhone"
+        }
+      },
+      {
+        $sort: { date: 1 }
+      }
+    );
+
+    const transactions = await MilkTransaction.aggregate(pipeline);
+
+    const rows = [
+      [
+        "Buyer Name",
+        "Mobile",
+        "Date",
+        "Quantity (L)",
+        "Price per L",
+        "Total Amount"
+      ]
+    ];
+
+    transactions.forEach((tx) => {
+      const dateLabel = tx.date
+        ? new Date(tx.date).toISOString().split("T")[0]
+        : "";
+      rows.push([
+        escapeCsvField(tx.buyerName),
+        escapeCsvField(tx.buyerMobile || ""),
+        escapeCsvField(dateLabel),
+        escapeCsvField(tx.quantity?.toFixed?.(2) ?? Number(tx.quantity ?? 0).toFixed(2)),
+        escapeCsvField(tx.pricePerLiter?.toFixed?.(2) ?? Number(tx.pricePerLiter ?? 0).toFixed(2)),
+        escapeCsvField(tx.totalAmount?.toFixed?.(2) ?? Number(tx.totalAmount ?? 0).toFixed(2))
+      ]);
+    });
+
+    const csvContent = rows.map((row) => row.join(",")).join("\n");
+    const filename = `buyer-purchases-${periodRange.year}-${String(periodRange.month).padStart(2, "0")}.csv`;
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.send(csvContent);
+  } catch (error) {
+    console.error("[reports] Failed to export buyer consumption:", error);
+    return res.status(500).json({
+      error: "Failed to export buyer purchases",
+      message: error.message
+    });
+  }
+}
+
+module.exports = {
+  getProfitLoss,
+  getDashboardSummary,
+  downloadBuyerConsumptionCsv
+};
 

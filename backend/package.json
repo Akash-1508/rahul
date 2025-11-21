@@ -7,7 +7,8 @@
     "dev": "node src/server.js",
     "start": "node src/server.js",
     "lint": "echo \"No linter configured\"",
-    "test": "echo \"No tests yet\""
+    "test": "echo \"No tests yet\"",
+    "build": "tsc -p tsconfig.json"
   },
   "keywords": [],
   "author": "RDF",

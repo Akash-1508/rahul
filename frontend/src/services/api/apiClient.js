@@ -91,3 +91,4 @@ export const apiClient = {
   },
 };
 
+export { API_BASE_URL };
