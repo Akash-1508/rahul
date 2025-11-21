@@ -14,7 +14,7 @@ import Button from '../../components/common/Button';
 import { formatDate } from '../../utils/dateUtils';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { milkService } from '../../services/milk/milkService';
-import { userService } from '../../services/users/userService';
+import { buyerService } from '../../services/buyers/buyerService';
 
 /**
  * Unified Milk Screen
@@ -23,7 +23,7 @@ import { userService } from '../../services/users/userService';
 export default function MilkScreen({ onNavigate, onLogout }) {
   const [transactionType, setTransactionType] = useState('purchase');
   const [transactions, setTransactions] = useState([]);
-  const [users, setUsers] = useState([]); // Users with role 2
+  const [buyers, setBuyers] = useState([]); // Buyers from buyers table
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showContactDropdown, setShowContactDropdown] = useState(false);
@@ -44,31 +44,29 @@ export default function MilkScreen({ onNavigate, onLogout }) {
     notes: '',
   });
 
-  // Load transactions and users on mount
+  // Load transactions and buyers on mount
   useEffect(() => {
     loadTransactions();
-    loadUsers();
+    loadBuyers();
   }, []);
 
-  const loadUsers = async () => {
+  const loadBuyers = async () => {
     try {
-      console.log('[MilkScreen] Starting to load users with role 2...');
-      // Load users with role 2 (Consumer)
-      const data = await userService.getUsersByRole(2);
-      console.log('[MilkScreen] Received data from API:', data);
-      console.log('[MilkScreen] Data type:', typeof data);
-      console.log('[MilkScreen] Is array:', Array.isArray(data));
-      console.log('[MilkScreen] Data length:', data?.length || 0);
+      console.log('[MilkScreen] Starting to load buyers...');
+      // Load buyers from buyers table
+      const data = await buyerService.getBuyers();
+      console.log('[MilkScreen] Received buyers data:', data);
+      console.log('[MilkScreen] Buyers count:', data?.length || 0);
       
-      const buyers = Array.isArray(data) ? data : [];
-      console.log('[MilkScreen] Setting buyers to state:', buyers.length);
-      setUsers(buyers);
-      return buyers;
+      const buyersList = Array.isArray(data) ? data : [];
+      console.log('[MilkScreen] Setting buyers to state:', buyersList.length);
+      setBuyers(buyersList);
+      return buyersList;
     } catch (error) {
-      console.error('[MilkScreen] Failed to load users:', error);
+      console.error('[MilkScreen] Failed to load buyers:', error);
       console.error('[MilkScreen] Error stack:', error.stack);
       Alert.alert('Error', `Failed to load buyers: ${error.message || 'Unknown error'}`);
-      setUsers([]);
+      setBuyers([]);
       return [];
     }
   };
@@ -86,22 +84,24 @@ export default function MilkScreen({ onNavigate, onLogout }) {
     }
   };
 
-  // Get contacts from users with role 2 and from transactions (optimized with useMemo)
+  // Get contacts from buyers table and from transactions (optimized with useMemo)
   const contacts = useMemo(() => {
     const contactMap = new Map();
     
-    // Add contacts from users table (role 2)
-    users.forEach((user) => {
-      if (user.mobile) {
-        const key = user.mobile.trim();
+    // Add contacts from buyers table
+    buyers.forEach((buyer) => {
+      if (buyer.mobile) {
+        const key = buyer.mobile.trim();
         contactMap.set(key, {
-          name: user.name,
-          phone: user.mobile,
+          name: buyer.name,
+          phone: buyer.mobile,
+          fixedPrice: buyer.rate, // rate from buyers table
+          dailyQuantity: buyer.quantity, // quantity from buyers table
         });
       }
     });
     
-    // Add contacts from transactions (to include customers who might not be in users table)
+    // Add contacts from transactions (to include customers who might not be in buyers table)
     transactions.forEach((tx) => {
       if (transactionType === 'sale' && tx.buyerPhone) {
         const key = tx.buyerPhone.trim();
@@ -124,7 +124,7 @@ export default function MilkScreen({ onNavigate, onLogout }) {
     
     // Convert map to array and sort by name
     return Array.from(contactMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [users, transactions, transactionType]);
+  }, [buyers, transactions, transactionType]);
 
   const handleAddTransaction = async () => {
     // Validation
@@ -167,9 +167,9 @@ export default function MilkScreen({ onNavigate, onLogout }) {
       // Get buyer's fixed price for reference
       let fixedPrice = undefined;
       if (transactionType === 'sale' && formData.contactPhone) {
-        const buyer = users.find((u) => u.mobile?.trim() === formData.contactPhone.trim());
-        if (buyer && buyer.milkFixedPrice) {
-          fixedPrice = buyer.milkFixedPrice;
+        const buyer = buyers.find((b) => b.mobile?.trim() === formData.contactPhone.trim());
+        if (buyer && buyer.rate) {
+          fixedPrice = buyer.rate;
         }
       }
 
@@ -218,22 +218,11 @@ export default function MilkScreen({ onNavigate, onLogout }) {
     // Find last transaction for this customer
     const customerPhone = contact.phone?.trim();
     let lastTransaction = null;
-    let fixedPrice = undefined;
-    let dailyQuantity = undefined;
-    
-    // Find user's fixed price and daily quantity
-    if (customerPhone) {
-      const user = users.find((u) => u.mobile?.trim() === customerPhone);
-      if (user) {
-        if (user.milkFixedPrice) {
-          fixedPrice = user.milkFixedPrice;
-        }
-        if (user.dailyMilkQuantity) {
-          dailyQuantity = user.dailyMilkQuantity;
-        }
-      }
+    let fixedPrice = contact.fixedPrice; // From buyers table
+    let dailyQuantity = contact.dailyQuantity; // From buyers table
 
-      // Find the most recent transaction for this customer
+    // Find the most recent transaction for this customer
+    if (customerPhone) {
       const customerTransactions = transactions.filter((tx) => {
         if (transactionType === 'sale') {
           return tx.type === 'sale' && tx.buyerPhone?.trim() === customerPhone;
@@ -467,7 +456,7 @@ export default function MilkScreen({ onNavigate, onLogout }) {
             onPress={async () => {
               try {
                 setBuyersLoading(true);
-                const loadedBuyers = await loadUsers(); // Reload users before showing list
+                const loadedBuyers = await loadBuyers(); // Reload buyers before showing list
                 console.log('[MilkScreen] Loaded buyers count:', loadedBuyers.length);
                 console.log('[MilkScreen] Loaded buyers data:', loadedBuyers);
                 
@@ -770,8 +759,8 @@ export default function MilkScreen({ onNavigate, onLogout }) {
                   <View style={styles.buyerDetailsRow}>
                     <Text style={styles.buyerDetailsLabel}>Fixed Milk Price:</Text>
                     <Text style={styles.buyerDetailsValue}>
-                      {selectedBuyer.milkFixedPrice 
-                        ? `₹${selectedBuyer.milkFixedPrice.toFixed(2)}/Liter`
+                      {selectedBuyer.rate 
+                        ? `₹${selectedBuyer.rate.toFixed(2)}/Liter`
                         : 'Not Set'
                       }
                     </Text>
@@ -780,8 +769,8 @@ export default function MilkScreen({ onNavigate, onLogout }) {
                   <View style={styles.buyerDetailsRow}>
                     <Text style={styles.buyerDetailsLabel}>Daily Milk Quantity:</Text>
                     <Text style={styles.buyerDetailsValue}>
-                      {selectedBuyer.dailyMilkQuantity 
-                        ? `${selectedBuyer.dailyMilkQuantity.toFixed(2)} Liters`
+                      {selectedBuyer.quantity 
+                        ? `${selectedBuyer.quantity.toFixed(2)} Liters`
                         : 'Not Set'
                       }
                     </Text>
@@ -801,11 +790,11 @@ export default function MilkScreen({ onNavigate, onLogout }) {
                     style={styles.sellMilkButton}
                     onPress={() => {
                       // Pre-fill form with buyer data
-                      const quantityToFill = selectedBuyer.dailyMilkQuantity 
-                        ? selectedBuyer.dailyMilkQuantity.toString() 
+                      const quantityToFill = selectedBuyer.quantity 
+                        ? selectedBuyer.quantity.toString() 
                         : '';
-                      const priceToFill = selectedBuyer.milkFixedPrice 
-                        ? selectedBuyer.milkFixedPrice.toString() 
+                      const priceToFill = selectedBuyer.rate 
+                        ? selectedBuyer.rate.toString() 
                         : '';
                       
                       setFormData({
@@ -831,11 +820,11 @@ export default function MilkScreen({ onNavigate, onLogout }) {
               // Buyer List View
               <ScrollView style={styles.buyerListContainer}>
                 {(() => {
-                  // Use buyersForModal if available, otherwise fall back to users
-                  const buyersToShow = buyersForModal.length > 0 ? buyersForModal : users;
+                  // Use buyersForModal if available, otherwise fall back to buyers
+                  const buyersToShow = buyersForModal.length > 0 ? buyersForModal : buyers;
                   console.log('[MilkScreen] Rendering buyer list');
                   console.log('[MilkScreen] buyersForModal count:', buyersForModal.length);
-                  console.log('[MilkScreen] users count:', users.length);
+                  console.log('[MilkScreen] buyers count:', buyers.length);
                   console.log('[MilkScreen] buyersToShow count:', buyersToShow.length);
                   console.log('[MilkScreen] buyersToShow data:', buyersToShow);
                   return buyersToShow.length === 0;
@@ -850,7 +839,7 @@ export default function MilkScreen({ onNavigate, onLogout }) {
                       onPress={async () => {
                         try {
                           setLoading(true);
-                          const refreshed = await loadUsers();
+                          const refreshed = await loadBuyers();
                           setBuyersForModal(refreshed);
                         } catch (error) {
                           console.error('Error refreshing buyers:', error);
@@ -864,7 +853,7 @@ export default function MilkScreen({ onNavigate, onLogout }) {
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  (buyersForModal.length > 0 ? buyersForModal : users).map((buyer, index) => {
+                  (buyersForModal.length > 0 ? buyersForModal : buyers).map((buyer, index) => {
                     console.log(`[MilkScreen] Rendering buyer ${index}:`, buyer);
                     return (
                       <TouchableOpacity
@@ -882,14 +871,14 @@ export default function MilkScreen({ onNavigate, onLogout }) {
                             <Text style={styles.buyerListItemPhone}>{buyer.mobile}</Text>
                           )}
                           <View style={styles.buyerListItemDetails}>
-                            {buyer.milkFixedPrice && (
+                            {buyer.rate && (
                               <Text style={styles.buyerListItemDetail}>
-                                ₹{buyer.milkFixedPrice.toFixed(2)}/L
+                                ₹{buyer.rate.toFixed(2)}/L
                               </Text>
                             )}
-                            {buyer.dailyMilkQuantity && (
+                            {buyer.quantity && (
                               <Text style={styles.buyerListItemDetail}>
-                                {buyer.dailyMilkQuantity.toFixed(2)}L/day
+                                {buyer.quantity.toFixed(2)}L/day
                               </Text>
                             )}
                           </View>

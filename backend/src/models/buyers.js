@@ -6,6 +6,7 @@ const BuyerSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
     unique: true
+    // Note: unique: true automatically creates an index
   },
   name: {
     type: String,
@@ -34,7 +35,7 @@ const BuyerSchema = new mongoose.Schema({
 });
 
 // Indexes
-BuyerSchema.index({ userId: 1 });
+// Note: userId already has unique: true which creates an index automatically
 
 const Buyer = mongoose.model('Buyer', BuyerSchema);
 

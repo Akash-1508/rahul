@@ -12,13 +12,13 @@ import HeaderWithMenu from '../../components/common/HeaderWithMenu';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { milkService } from '../../services/milk/milkService';
-import { userService } from '../../services/users/userService';
+import { buyerService } from '../../services/buyers/buyerService';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { authService } from '../../services/auth/authService';
 
 export default function BuyerScreen({ onNavigate, onLogout }) {
   const [transactions, setTransactions] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [buyersData, setBuyersData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedBuyer, setSelectedBuyer] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -37,12 +37,12 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [txData, userData] = await Promise.all([
+      const [txData, buyersList] = await Promise.all([
         milkService.getTransactions(),
-        userService.getUsersByRole(2).catch(() => []),
+        buyerService.getBuyers().catch(() => []),
       ]);
       setTransactions(txData);
-      setUsers(userData);
+      setBuyersData(buyersList);
     } catch (error) {
       console.error('Failed to load data:', error);
       Alert.alert('Error', 'Failed to load buyer data. Please try again.');
@@ -55,30 +55,28 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
   const buyers = useMemo(() => {
     const buyerMap = new Map();
 
-    // Add buyers from users table
-    users.forEach((user) => {
-      if (user.mobile) {
-        const key = user.mobile.trim();
+    // Add buyers from buyers table
+    buyersData.forEach((buyer) => {
+      if (buyer.mobile) {
+        const key = buyer.mobile.trim();
         buyerMap.set(key, {
-          name: user.name,
-          phone: user.mobile,
+          name: buyer.name,
+          phone: buyer.mobile,
           totalQuantity: 0,
           totalAmount: 0,
           transactionCount: 0,
-          fixedPrice: user.milkFixedPrice,
-          dailyQuantity: user.dailyMilkQuantity,
+          fixedPrice: buyer.rate, // rate from buyers table
+          dailyQuantity: buyer.quantity, // quantity from buyers table
         });
       }
     });
 
     // Process transactions and calculate statistics
-    // Only process transactions for buyers that exist in users table
     transactions.forEach((tx) => {
       if (tx.type === 'sale' && tx.buyerPhone) {
         const key = tx.buyerPhone.trim();
         const buyer = buyerMap.get(key);
         
-        // Only process if buyer exists in users table
         if (buyer) {
           buyer.totalQuantity += tx.quantity;
           buyer.totalAmount += tx.totalAmount;
@@ -105,7 +103,7 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
         // If amounts are equal, sort by name (ascending)
         return a.name.localeCompare(b.name);
       });
-  }, [transactions, users]);
+  }, [transactions, buyersData]);
 
   const getBuyerTransactions = (phone) => {
     return transactions

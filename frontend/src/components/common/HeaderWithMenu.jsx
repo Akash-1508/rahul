@@ -18,7 +18,8 @@ const menuItems = [
   { id: 3, title: 'Milk', icon: '🥛' },
   { id: 4, title: 'Chara', icon: '🌾' },
   { id: 5, title: 'Profit/Loss', icon: '💰' },
-  { id: 6, title: 'Buyer', icon: '👥' },
+  { id: 6, title: 'Milk Sales Report', icon: '📈' },
+  { id: 7, title: 'Buyer', icon: '👥' },
 ];
 
 export default function HeaderWithMenu({ title, subtitle, onNavigate, isAuthenticated = false, onLogout }) {

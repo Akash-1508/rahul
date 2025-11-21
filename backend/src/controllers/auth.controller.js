@@ -1,7 +1,9 @@
 const crypto = require("crypto");
-const { addUser, UserRoles, findUserByEmail, findUserByMobile, addBuyer } = require("../models");
-const { validateSignup, validateLogin, formatValidationErrors } = require("../utils/validators");
+const { addUser, UserRoles, findUserByEmail, findUserByMobile, addBuyer, updateUserPassword } = require("../models");
+const { validateSignup, validateLogin, validateForgotPassword, validateResetPassword, formatValidationErrors } = require("../utils/validators");
 const { generateToken } = require("../utils/jwt");
+const { storeOTP, verifyOTP, getStoredOTP } = require("../utils/otpStore");
+const { sendOTP } = require("../services/smsService");
 
 const login = async (req, res) => {
   const validation = validateLogin(req.body);
@@ -85,14 +87,6 @@ const signup = async (req, res) => {
     // Use provided role or default to CONSUMER (2)
     const userRole = validatedData.role !== undefined ? validatedData.role : UserRoles.CONSUMER;
     
-    // Log received data for debugging
-    console.log('[auth] Signup data received:', {
-      name: validatedData.name,
-      mobile: validatedData.mobile,
-      milkFixedPrice: validatedData.milkFixedPrice,
-      dailyMilkQuantity: validatedData.dailyMilkQuantity,
-    });
-    
     const created = await addUser({
       name: validatedData.name,
       email: validatedData.email || "",
@@ -102,16 +96,12 @@ const signup = async (req, res) => {
       role: userRole,
       passwordHash,
       isActive: true,
-      milkFixedPrice: validatedData.milkFixedPrice,
-      dailyMilkQuantity: validatedData.dailyMilkQuantity
     });
 
     console.log(`[auth] New user created:`, {
       _id: created._id,
       name: created.name,
       mobile: created.mobile,
-      milkFixedPrice: created.milkFixedPrice,
-      dailyMilkQuantity: created.dailyMilkQuantity,
     });
 
     // If user is a buyer (CONSUMER role), create a buyer record
@@ -174,5 +164,102 @@ const signup = async (req, res) => {
   }
 };
 
-module.exports = { login, signup };
+const forgotPassword = async (req, res) => {
+  const validation = validateForgotPassword(req.body);
+  if (!validation.success) {
+    return res.status(400).json(formatValidationErrors(validation.errors));
+  }
+  
+  const { mobile } = validation.data;
+  
+  try {
+    // Find user by mobile number only
+    const user = await findUserByMobile(mobile);
+    
+    if (!user) {
+      // Don't reveal if user exists or not (security best practice)
+      // Still return success message to prevent user enumeration
+      return res.json({ 
+        message: "If the mobile number exists, an OTP has been sent to your mobile number"
+      });
+    }
+    
+    // Generate and store OTP
+    const otp = storeOTP(mobile, user._id.toString());
+    
+    // Log OTP for testing (since SMS might not be working)
+    console.log(`\n🔐 [OTP GENERATED]`);
+    console.log(`📱 Mobile: +91${mobile}`);
+    console.log(`🔢 OTP: ${otp}`);
+    console.log(`⏰ Valid for: 10 minutes`);
+    console.log(`💡 Use this OTP to test password reset\n`);
+    
+    // Send OTP via SMS
+    try {
+      await sendOTP(mobile, otp);
+      console.log(`[auth/forgot-password] ✅ OTP sent via SMS to mobile ${mobile}`);
+    } catch (smsError) {
+      console.error(`[auth/forgot-password] ❌ Failed to send SMS:`, smsError.message);
+      console.error(`[auth/forgot-password] ⚠️  SMS not sent, but OTP is: ${otp} (check console above)`);
+      // Still return success to prevent user enumeration
+      // Log error for monitoring
+    }
+    
+    return res.json({ 
+      message: "OTP has been sent to your mobile number"
+    });
+  } catch (error) {
+    console.error("[auth/forgot-password] Error:", error);
+    return res.status(500).json({ error: "Failed to process request" });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  const validation = validateResetPassword(req.body);
+  if (!validation.success) {
+    return res.status(400).json(formatValidationErrors(validation.errors));
+  }
+  
+  const { mobile, otp, newPassword } = validation.data;
+  
+  try {
+    // Verify OTP
+    const otpResult = verifyOTP(mobile, otp);
+    
+    if (!otpResult.valid) {
+      return res.status(400).json({ error: otpResult.error });
+    }
+    
+    // Find user by mobile number
+    const user = await findUserByMobile(mobile);
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    // Verify userId matches
+    if (user._id.toString() !== otpResult.userId) {
+      return res.status(400).json({ error: "Invalid OTP" });
+    }
+    
+    // Hash new password
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = crypto.scryptSync(newPassword, salt, 64).toString("hex");
+    const passwordHash = `${salt}:${hash}`;
+    
+    // Update password
+    await updateUserPassword(user._id, passwordHash);
+    
+    console.log(`[auth/reset-password] Password reset successful for mobile ${mobile}`);
+    
+    return res.json({ 
+      message: "Password reset successful. Please login with your new password."
+    });
+  } catch (error) {
+    console.error("[auth/reset-password] Error:", error);
+    return res.status(500).json({ error: "Failed to reset password" });
+  }
+};
+
+module.exports = { login, signup, forgotPassword, resetPassword };
 

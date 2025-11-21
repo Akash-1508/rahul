@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { authService } from '../../services/auth/authService';
@@ -20,7 +20,8 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }) {
     }
     try {
       setLoading(true);
-      await authService.login(emailOrMobile.trim(), password);
+      const user = await authService.login(emailOrMobile.trim(), password);
+      // console.log('[LoginScreen] Login successful, user data:', user);
       // Call onLoginSuccess callback to update authentication state
       if (onLoginSuccess) {
         onLoginSuccess();
@@ -28,6 +29,7 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }) {
         onNavigate('Dashboard');
       }
     } catch (e) {
+      console.error('[LoginScreen] Login error:', e);
       Alert.alert('Login failed', e?.message || 'Something went wrong');
     } finally {
       setLoading(false);
@@ -62,6 +64,10 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }) {
           style={styles.input}
         />
         <Button title={loading ? 'Logging in...' : 'Login'} onPress={onLogin} disabled={loading} />
+        <View style={{ height: 16 }} />
+        <TouchableOpacity onPress={() => onNavigate('ForgotPassword')} style={styles.forgotPasswordLink}>
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+        </TouchableOpacity>
         <View style={{ height: 16 }} />
         <Button title="Go to Signup" onPress={goToSignup} />
       </ScrollView>
@@ -101,6 +107,15 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 12,
+  },
+  forgotPasswordLink: {
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  forgotPasswordText: {
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

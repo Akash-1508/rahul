@@ -88,9 +88,80 @@ function validateSignup(data) {
   };
 }
 
+// Forgot password validation schema - Mobile only
+const forgotPasswordSchema = z.object({
+  mobile: z
+    .string()
+    .min(1, "Mobile number is required")
+    .trim()
+    .refine(
+      (val) => /^[0-9]{10}$/.test(val),
+      "Mobile must be exactly 10 digits"
+    ),
+});
+
+// Reset password validation schema - Mobile only
+const resetPasswordSchema = z.object({
+  mobile: z
+    .string()
+    .min(1, "Mobile number is required")
+    .trim()
+    .refine(
+      (val) => /^[0-9]{10}$/.test(val),
+      "Mobile must be exactly 10 digits"
+    ),
+  otp: z
+    .string()
+    .min(1, "OTP is required")
+    .trim()
+    .refine(
+      (val) => /^[0-9]{4}$/.test(val),
+      "OTP must be exactly 4 digits"
+    ),
+  newPassword: z
+    .string()
+    .min(1, "New password is required")
+    .min(6, "Password must be at least 6 characters")
+    .max(100, "Password must be less than 100 characters"),
+});
+
 // Validate login data
 function validateLogin(data) {
   const result = loginSchema.safeParse(data);
+  
+  if (result.success) {
+    return {
+      success: true,
+      data: result.data,
+    };
+  }
+  
+  return {
+    success: false,
+    errors: result.error,
+  };
+}
+
+// Validate forgot password data
+function validateForgotPassword(data) {
+  const result = forgotPasswordSchema.safeParse(data);
+  
+  if (result.success) {
+    return {
+      success: true,
+      data: result.data,
+    };
+  }
+  
+  return {
+    success: false,
+    errors: result.error,
+  };
+}
+
+// Validate reset password data
+function validateResetPassword(data) {
+  const result = resetPasswordSchema.safeParse(data);
   
   if (result.success) {
     return {
@@ -116,8 +187,12 @@ function formatValidationErrors(error) {
 module.exports = {
   signupSchema,
   loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
   validateSignup,
   validateLogin,
+  validateForgotPassword,
+  validateResetPassword,
   formatValidationErrors,
 };
 

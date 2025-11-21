@@ -6,9 +6,11 @@ import AnimalScreen from './src/pages/animals/AnimalScreen';
 import MilkScreen from './src/pages/milk/MilkScreen';
 import CharaScreen from './src/pages/chara/CharaScreen';
 import ProfitLossScreen from './src/pages/reports/ProfitLossScreen';
+import MilkSalesReportScreen from './src/pages/reports/MilkSalesReportScreen';
 import BuyerScreen from './src/pages/buyers/BuyerScreen';
 import LoginScreen from './src/pages/auth/LoginScreen';
 import SignupScreen from './src/pages/auth/SignupScreen';
+import ForgotPasswordScreen from './src/pages/auth/ForgotPasswordScreen';
 import { authService } from './src/services/auth/authService';
 
 function App() {
@@ -18,7 +20,7 @@ function App() {
 
   const navigateToScreen = (screen) => {
     // Protected screens - only accessible after login
-    const protectedScreens = ['Dashboard', 'Animals', 'Milk', 'Chara', 'Profit/Loss', 'Buyer'];
+    const protectedScreens = ['Dashboard', 'Animals', 'Milk', 'Chara', 'Profit/Loss', 'Milk Sales Report', 'Buyer'];
     
     // If trying to access protected screen without login, redirect to login
     if (protectedScreens.includes(screen) && !isAuthenticated) {
@@ -26,8 +28,8 @@ function App() {
       return;
     }
     
-    // Allow navigation to login/signup screens always
-    if (screen === 'Login/Signup' || screen === 'Signup') {
+    // Allow navigation to login/signup/forgot password screens always
+    if (screen === 'Login/Signup' || screen === 'Signup' || screen === 'ForgotPassword') {
       setCurrentScreen(screen);
       return;
     }
@@ -56,6 +58,8 @@ function App() {
       switch (currentScreen) {
         case 'Signup':
           return <SignupScreen onNavigate={navigateToScreen} />;
+        case 'ForgotPassword':
+          return <ForgotPasswordScreen onNavigate={navigateToScreen} />;
         case 'Login/Signup':
         default:
           return <LoginScreen onNavigate={navigateToScreen} onLoginSuccess={handleLoginSuccess} />;
@@ -74,6 +78,8 @@ function App() {
         return <CharaScreen onNavigate={navigateToScreen} onLogout={handleLogout} />;
       case 'Profit/Loss':
         return <ProfitLossScreen onNavigate={navigateToScreen} onLogout={handleLogout} />;
+      case 'Milk Sales Report':
+        return <MilkSalesReportScreen onNavigate={navigateToScreen} onLogout={handleLogout} />;
       case 'Buyer':
         return <BuyerScreen onNavigate={navigateToScreen} onLogout={handleLogout} />;
       case 'Login/Signup':

@@ -74,7 +74,7 @@ export default function SignupScreen({ onNavigate }) {
         password,
         mobile.trim(),
         gender || undefined,
-        address && address.trim().length >= 2 ? address.trim() : undefined
+        address.trim() || undefined
       );
       Alert.alert('Success', 'Account created. Please login.');
       onNavigate?.('Login/Signup');

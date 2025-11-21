@@ -51,16 +51,6 @@ const UserSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
-  },
-  milkFixedPrice: {
-    type: Number,
-    required: false,
-    min: 0
-  },
-  dailyMilkQuantity: {
-    type: Number,
-    required: false,
-    min: 0
   }
 }, {
   timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
@@ -135,6 +125,15 @@ async function getUsersByRole(role) {
   return users;
 }
 
+async function updateUserPassword(userId, newPasswordHash) {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new Error("User not found");
+  }
+  user.passwordHash = newPasswordHash;
+  return await user.save();
+}
+
 module.exports = {
   User,
   UserRoles,
@@ -143,4 +142,5 @@ module.exports = {
   assertUserUnique,
   addUser,
   getUsersByRole,
+  updateUserPassword,
 };

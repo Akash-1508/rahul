@@ -16,6 +16,27 @@ export function setAuthToken(token) {
   authToken = token;
 }
 
+/**
+ * Sanitize sensitive data before logging
+ * Removes passwords and other sensitive fields
+ */
+function sanitizeForLogging(data) {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+  
+  const sensitiveFields = ['password', 'confirmPassword', 'oldPassword', 'newPassword'];
+  const sanitized = { ...data };
+  
+  sensitiveFields.forEach(field => {
+    if (sanitized[field]) {
+      sanitized[field] = '***HIDDEN***';
+    }
+  });
+  
+  return sanitized;
+}
+
 async function request(method, endpoint, data) {
   const headers = {
     'Accept': 'application/json',
@@ -26,7 +47,8 @@ async function request(method, endpoint, data) {
   }
   
   const url = `${API_BASE_URL}${endpoint}`;
-  console.log(`[apiClient] ${method} ${url}`, { hasToken: !!authToken, data });
+  const sanitizedData = sanitizeForLogging(data);
+  console.log(`[apiClient] ${method} ${url}`, { hasToken: !!authToken, data: sanitizedData });
   
   try {
     const res = await fetch(url, {
@@ -39,6 +61,7 @@ async function request(method, endpoint, data) {
     console.log(`[apiClient] Response status: ${res.status}`, { text: text.substring(0, 200) });
     
     const json = text ? JSON.parse(text) : null;
+    
     
     if (!res.ok) {
       const message = json?.error || res.statusText || 'Request failed';
