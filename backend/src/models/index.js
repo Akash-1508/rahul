@@ -4,4 +4,5 @@ module.exports = {
   ...require("./chara"),
   ...require("./users"),
   ...require("./buyers"),
+  ...require("./sellers"),
 };

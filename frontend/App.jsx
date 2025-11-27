@@ -8,6 +8,7 @@ import CharaScreen from './src/pages/chara/CharaScreen';
 import ProfitLossScreen from './src/pages/reports/ProfitLossScreen';
 import MilkSalesReportScreen from './src/pages/reports/MilkSalesReportScreen';
 import BuyerScreen from './src/pages/buyers/BuyerScreen';
+import SellerScreen from './src/pages/sellers/SellerScreen';
 import LoginScreen from './src/pages/auth/LoginScreen';
 import SignupScreen from './src/pages/auth/SignupScreen';
 import ForgotPasswordScreen from './src/pages/auth/ForgotPasswordScreen';
@@ -20,7 +21,7 @@ function App() {
 
   const navigateToScreen = (screen) => {
     // Protected screens - only accessible after login
-    const protectedScreens = ['Dashboard', 'Animals', 'Milk', 'Chara', 'Profit/Loss', 'Milk Sales Report', 'Buyer'];
+    const protectedScreens = ['Dashboard', 'Animals', 'Milk', 'Chara', 'Profit/Loss', 'Milk Sales Report', 'Buyer', 'Seller'];
     
     // If trying to access protected screen without login, redirect to login
     if (protectedScreens.includes(screen) && !isAuthenticated) {
@@ -82,6 +83,8 @@ function App() {
         return <MilkSalesReportScreen onNavigate={navigateToScreen} onLogout={handleLogout} />;
       case 'Buyer':
         return <BuyerScreen onNavigate={navigateToScreen} onLogout={handleLogout} />;
+      case 'Seller':
+        return <SellerScreen onNavigate={navigateToScreen} onLogout={handleLogout} />;
       case 'Login/Signup':
         return <LoginScreen onNavigate={navigateToScreen} onLoginSuccess={handleLoginSuccess} />;
       case 'Signup':

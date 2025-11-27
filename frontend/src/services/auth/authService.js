@@ -23,7 +23,8 @@ export const authService = {
     gender,
     address,
     milkFixedPrice,
-    dailyMilkQuantity
+    dailyMilkQuantity,
+    role
   ) => {
     const res = await apiClient.post('/auth/signup', {
       name,
@@ -34,6 +35,7 @@ export const authService = {
       address,
       milkFixedPrice,
       dailyMilkQuantity,
+      role,
     });
     return res;
   },

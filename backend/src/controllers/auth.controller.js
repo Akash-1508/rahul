@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { addUser, UserRoles, findUserByEmail, findUserByMobile, addBuyer, updateUserPassword } = require("../models");
+const { addUser, UserRoles, findUserByEmail, findUserByMobile, addBuyer, addSeller, updateUserPassword } = require("../models");
 const { validateSignup, validateLogin, validateForgotPassword, validateResetPassword, formatValidationErrors } = require("../utils/validators");
 const { generateToken } = require("../utils/jwt");
 const { storeOTP, verifyOTP, getStoredOTP } = require("../utils/otpStore");
@@ -147,6 +147,54 @@ const signup = async (req, res) => {
       console.log('[auth] Skipping buyer creation:', {
         userRole,
         isConsumer: userRole === UserRoles.CONSUMER,
+        hasId: !!created._id,
+        _id: created._id?.toString ? created._id.toString() : String(created._id),
+      });
+    }
+
+    // If user is a seller (SELLER role), create a seller record
+    if (userRole === UserRoles.SELLER && created._id) {
+      try {
+        // Convert _id to string if it's ObjectId, to ensure proper handling
+        const userId = created._id?.toString ? created._id.toString() : String(created._id);
+        
+        console.log('[auth] Attempting to create seller record for user:', {
+          userId: userId,
+          userIdType: typeof created._id,
+          userIdString: userId,
+          name: created.name,
+          quantity: validatedData.dailyMilkQuantity,
+          rate: validatedData.milkFixedPrice,
+        });
+        
+        const seller = await addSeller({
+          userId: userId, // Pass as string, addSeller will convert to ObjectId
+          name: created.name,
+          quantity: validatedData.dailyMilkQuantity,
+          rate: validatedData.milkFixedPrice,
+        });
+        
+        console.log(`[auth] Seller record created successfully:`, {
+          _id: seller._id,
+          userId: seller.userId,
+          name: seller.name,
+          quantity: seller.quantity,
+          rate: seller.rate,
+        });
+      } catch (sellerError) {
+        // Log error but don't fail the signup if seller creation fails
+        console.error('[auth] Failed to create seller record:', {
+          error: sellerError?.message || sellerError,
+          stack: sellerError?.stack,
+          userId: created._id?.toString ? created._id.toString() : String(created._id),
+          userIdType: typeof created._id,
+          fullError: JSON.stringify(sellerError, Object.getOwnPropertyNames(sellerError)),
+        });
+      }
+    } else {
+      console.log('[auth] Skipping seller creation:', {
+        userRole,
+        isSeller: userRole === UserRoles.SELLER,
         hasId: !!created._id,
         _id: created._id?.toString ? created._id.toString() : String(created._id),
       });

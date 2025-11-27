@@ -3,7 +3,8 @@ const mongoose = require("mongoose");
 const UserRoles = {
   SUPER_ADMIN: 0,
   ADMIN: 1,
-  CONSUMER: 2
+  CONSUMER: 2,
+  SELLER: 3
 };
 
 const UserSchema = new mongoose.Schema({
@@ -41,7 +42,7 @@ const UserSchema = new mongoose.Schema({
   role: {
     type: Number,
     required: true,
-    enum: [0, 1, 2],
+    enum: [0, 1, 2, 3],
     default: 2
   },
   passwordHash: {

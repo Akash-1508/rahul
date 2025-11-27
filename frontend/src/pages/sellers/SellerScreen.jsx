@@ -12,15 +12,15 @@ import HeaderWithMenu from '../../components/common/HeaderWithMenu';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { milkService } from '../../services/milk/milkService';
-import { buyerService } from '../../services/buyers/buyerService';
+import { sellerService } from '../../services/sellers/sellerService';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { authService } from '../../services/auth/authService';
 
-export default function BuyerScreen({ onNavigate, onLogout }) {
+export default function SellerScreen({ onNavigate, onLogout }) {
   const [transactions, setTransactions] = useState([]);
-  const [buyersData, setBuyersData] = useState([]);
+  const [sellersData, setSellersData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedBuyer, setSelectedBuyer] = useState(null);
+  const [selectedSeller, setSelectedSeller] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -37,36 +37,36 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [txData, buyersList] = await Promise.all([
+      const [txData, sellersList] = await Promise.all([
         milkService.getTransactions(),
-        buyerService.getBuyers().catch(() => []),
+        sellerService.getSellers().catch(() => []),
       ]);
       setTransactions(txData);
-      setBuyersData(buyersList);
+      setSellersData(sellersList);
     } catch (error) {
       console.error('Failed to load data:', error);
-      Alert.alert('Error', 'Failed to load buyer data. Please try again.');
+      Alert.alert('Error', 'Failed to load seller data. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Get all buyers with their statistics
-  const buyers = useMemo(() => {
-    const buyerMap = new Map();
+  // Get all sellers with their statistics
+  const sellers = useMemo(() => {
+    const sellerMap = new Map();
 
-    // Add buyers from buyers table
-    buyersData.forEach((buyer) => {
-      if (buyer.mobile) {
-        const key = buyer.mobile.trim();
-        buyerMap.set(key, {
-          name: buyer.name,
-          phone: buyer.mobile,
+    // Add sellers from sellers table
+    sellersData.forEach((seller) => {
+      if (seller.mobile) {
+        const key = seller.mobile.trim();
+        sellerMap.set(key, {
+          name: seller.name,
+          phone: seller.mobile,
           totalQuantity: 0,
           totalAmount: 0,
           transactionCount: 0,
-          fixedPrice: buyer.rate, // rate from buyers table
-          dailyQuantity: buyer.quantity, // quantity from buyers table
+          fixedPrice: seller.rate, // rate from sellers table
+          dailyQuantity: seller.quantity, // quantity from sellers table
         });
       }
     });
@@ -75,26 +75,26 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
     transactions.forEach((tx) => {
       if (tx.type === 'sale' && tx.buyerPhone) {
         const key = tx.buyerPhone.trim();
-        const buyer = buyerMap.get(key);
+        const seller = sellerMap.get(key);
         
-        if (buyer) {
-          buyer.totalQuantity += tx.quantity;
-          buyer.totalAmount += tx.totalAmount;
-          buyer.transactionCount += 1;
+        if (seller) {
+          seller.totalQuantity += tx.quantity;
+          seller.totalAmount += tx.totalAmount;
+          seller.transactionCount += 1;
 
           const txDate = new Date(tx.date);
-          if (!buyer.lastTransactionDate || txDate > buyer.lastTransactionDate) {
-            buyer.lastTransactionDate = txDate;
+          if (!seller.lastTransactionDate || txDate > seller.lastTransactionDate) {
+            seller.lastTransactionDate = txDate;
           }
 
-          buyerMap.set(key, buyer);
+          sellerMap.set(key, seller);
         }
       }
     });
 
-    // Return all buyers (including those with no transactions yet)
+    // Return all sellers (including those with no transactions yet)
     // Sort by total amount (highest first), then by name
-    return Array.from(buyerMap.values())
+    return Array.from(sellerMap.values())
       .sort((a, b) => {
         // First sort by total amount (descending)
         if (b.totalAmount !== a.totalAmount) {
@@ -103,9 +103,9 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
         // If amounts are equal, sort by name (ascending)
         return a.name.localeCompare(b.name);
       });
-  }, [transactions, buyersData]);
+  }, [transactions, sellersData]);
 
-  const getBuyerTransactions = (phone) => {
+  const getSellerTransactions = (phone) => {
     return transactions
       .filter((tx) => tx.type === 'sale' && tx.buyerPhone?.trim() === phone.trim())
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -119,7 +119,7 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
     });
   };
 
-  const handleCreateBuyer = async () => {
+  const handleCreateSeller = async () => {
     // Validation
     if (!formData.name || !formData.mobile) {
       Alert.alert('Error', 'Please fill name and mobile number');
@@ -157,7 +157,7 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
         }
       }
       
-      // Create buyer with fixed password 123456#
+      // Create seller with fixed password 123456#
       await authService.signup(
         formData.name.trim(),
         formData.email.trim() || '',
@@ -167,21 +167,21 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
         undefined, // address
         fixedPrice,
         dailyQuantity,
-        2 // role: CONSUMER (Buyer)
+        3 // role: SELLER
       );
 
       // Reset form
       setFormData({ name: '', mobile: '', email: '', milkFixedPrice: '', dailyMilkQuantity: '' });
       setShowAddForm(false);
       
-      // Reload data to show new buyer immediately
+      // Reload data to show new seller immediately
       await loadData();
       
       // Show success message after data is loaded
-      Alert.alert('Success', 'Buyer created successfully!');
+      Alert.alert('Success', 'Seller created successfully!');
     } catch (error) {
-      console.error('Failed to create buyer:', error);
-      Alert.alert('Error', error.message || 'Failed to create buyer. Please try again.');
+      console.error('Failed to create seller:', error);
+      Alert.alert('Error', error.message || 'Failed to create seller. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -191,7 +191,7 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
     <View style={styles.container}>
       <HeaderWithMenu
         title="Dairy Farm Management"
-        subtitle="Buyers"
+        subtitle="Sellers"
         onNavigate={onNavigate}
         isAuthenticated={true}
         onLogout={onLogout}
@@ -202,76 +202,76 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
           onPress={() => setShowAddForm(true)}
           activeOpacity={0.7}
         >
-          <Text style={styles.addButtonText}>+ Add New Buyer</Text>
+          <Text style={styles.addButtonText}>+ Add New Seller</Text>
         </TouchableOpacity>
 
         {loading ? (
           <View style={styles.centerContainer}>
-            <Text style={styles.loadingText}>Loading buyers...</Text>
+            <Text style={styles.loadingText}>Loading sellers...</Text>
           </View>
-        ) : buyers.length === 0 ? (
+        ) : sellers.length === 0 ? (
           <View style={styles.centerContainer}>
-            <Text style={styles.emptyText}>No buyers found</Text>
-            <Text style={styles.emptySubtext}>Click "Add New Buyer" to create a buyer</Text>
+            <Text style={styles.emptyText}>No sellers found</Text>
+            <Text style={styles.emptySubtext}>Click "Add New Seller" to create a seller</Text>
           </View>
         ) : (
           <>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Total Buyers</Text>
-              <Text style={styles.summaryValue}>{buyers.length}</Text>
+              <Text style={styles.summaryTitle}>Total Sellers</Text>
+              <Text style={styles.summaryValue}>{sellers.length}</Text>
             </View>
 
-            {buyers.map((buyer, index) => {
-              const buyerTransactions = getBuyerTransactions(buyer.phone);
-              const isExpanded = selectedBuyer === buyer.phone;
+            {sellers.map((seller, index) => {
+              const sellerTransactions = getSellerTransactions(seller.phone);
+              const isExpanded = selectedSeller === seller.phone;
 
               return (
-                <View key={index} style={styles.buyerCard}>
+                <View key={index} style={styles.sellerCard}>
                   <TouchableOpacity
-                    onPress={() => setSelectedBuyer(isExpanded ? null : buyer.phone)}
+                    onPress={() => setSelectedSeller(isExpanded ? null : seller.phone)}
                     activeOpacity={0.7}
                   >
-                    <View style={styles.buyerHeader}>
-                      <View style={styles.buyerHeaderLeft}>
-                        <Text style={styles.buyerName}>{buyer.name}</Text>
-                        <Text style={styles.buyerPhone}>{buyer.phone}</Text>
+                    <View style={styles.sellerHeader}>
+                      <View style={styles.sellerHeaderLeft}>
+                        <Text style={styles.sellerName}>{seller.name}</Text>
+                        <Text style={styles.sellerPhone}>{seller.phone}</Text>
                       </View>
-                      <View style={styles.buyerHeaderRight}>
-                        <Text style={styles.buyerAmount}>{formatCurrency(buyer.totalAmount)}</Text>
-                        <Text style={styles.buyerQuantity}>{buyer.totalQuantity.toFixed(2)} L</Text>
+                      <View style={styles.sellerHeaderRight}>
+                        <Text style={styles.sellerAmount}>{formatCurrency(seller.totalAmount)}</Text>
+                        <Text style={styles.sellerQuantity}>{seller.totalQuantity.toFixed(2)} L</Text>
                         <Text style={styles.expandIcon}>{isExpanded ? '▲' : '▼'}</Text>
                       </View>
                     </View>
-                    <View style={styles.buyerStats}>
+                    <View style={styles.sellerStats}>
                       <Text style={styles.statText}>
-                        {buyer.transactionCount} Transaction{buyer.transactionCount !== 1 ? 's' : ''}
+                        {seller.transactionCount} Transaction{seller.transactionCount !== 1 ? 's' : ''}
                       </Text>
-                      {buyer.lastTransactionDate && (
+                      {seller.lastTransactionDate && (
                         <Text style={styles.statText}>
-                          Last: {formatDate(buyer.lastTransactionDate)}
+                          Last: {formatDate(seller.lastTransactionDate)}
                         </Text>
                       )}
                     </View>
-                    {(buyer.fixedPrice || buyer.dailyQuantity) && (
-                      <View style={styles.buyerDetails}>
-                        {buyer.fixedPrice && (
-                          <Text style={styles.buyerDetailText}>
-                            Fixed Price: {formatCurrency(buyer.fixedPrice)}/L
+                    {(seller.fixedPrice || seller.dailyQuantity) && (
+                      <View style={styles.sellerDetails}>
+                        {seller.fixedPrice && (
+                          <Text style={styles.sellerDetailText}>
+                            Fixed Price: {formatCurrency(seller.fixedPrice)}/L
                           </Text>
                         )}
-                        {buyer.dailyQuantity && (
-                          <Text style={styles.buyerDetailText}>
-                            Daily Quantity: {buyer.dailyQuantity.toFixed(2)} L
+                        {seller.dailyQuantity && (
+                          <Text style={styles.sellerDetailText}>
+                            Daily Quantity: {seller.dailyQuantity.toFixed(2)} L
                           </Text>
                         )}
                       </View>
                     )}
                   </TouchableOpacity>
 
-                  {isExpanded && buyerTransactions.length > 0 && (
+                  {isExpanded && sellerTransactions.length > 0 && (
                     <View style={styles.transactionsContainer}>
                       <Text style={styles.transactionsTitle}>Transaction History</Text>
-                      {buyerTransactions.map((tx) => (
+                      {sellerTransactions.map((tx) => (
                         <View key={tx._id} style={styles.transactionItem}>
                           <View style={styles.transactionRow}>
                             <Text style={styles.transactionDate}>{formatDate(new Date(tx.date))}</Text>
@@ -296,7 +296,7 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
         )}
       </ScrollView>
 
-      {/* Add Buyer Modal */}
+      {/* Add Seller Modal */}
       <Modal
         visible={showAddForm}
         animationType="slide"
@@ -306,7 +306,7 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Buyer</Text>
+              <Text style={styles.modalTitle}>Add New Seller</Text>
               <TouchableOpacity
                 onPress={() => {
                   setShowAddForm(false);
@@ -321,7 +321,7 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
             <ScrollView style={styles.formContainer}>
               <Text style={styles.label}>Name *</Text>
               <Input
-                placeholder="Enter buyer name"
+                placeholder="Enter seller name"
                 value={formData.name}
                 onChangeText={(text) => setFormData({ ...formData, name: text })}
                 style={styles.input}
@@ -369,8 +369,8 @@ export default function BuyerScreen({ onNavigate, onLogout }) {
               </Text>
 
               <Button
-                title={loading ? 'Creating...' : 'Create Buyer'}
-                onPress={handleCreateBuyer}
+                title={loading ? 'Creating...' : 'Create Seller'}
+                onPress={handleCreateSeller}
                 disabled={loading}
                 style={styles.createButton}
               />
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
-  buyerCard: {
+  sellerCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     padding: 15,
@@ -437,34 +437,34 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  buyerHeader: {
+  sellerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  buyerHeaderLeft: {
+  sellerHeaderLeft: {
     flex: 1,
   },
-  buyerName: {
+  sellerName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 4,
   },
-  buyerPhone: {
+  sellerPhone: {
     fontSize: 14,
     color: '#666',
   },
-  buyerHeaderRight: {
+  sellerHeaderRight: {
     alignItems: 'flex-end',
   },
-  buyerAmount: {
+  sellerAmount: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2196F3',
     marginBottom: 4,
   },
-  buyerQuantity: {
+  sellerQuantity: {
     fontSize: 14,
     color: '#666',
     marginBottom: 4,
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
   },
-  buyerStats: {
+  sellerStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 10,
@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 10,
   },
-  buyerDetails: {
+  sellerDetails: {
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
@@ -611,11 +611,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     flexWrap: 'wrap',
   },
-  buyerDetailText: {
+  sellerDetailText: {
     fontSize: 13,
     color: '#4CAF50',
     fontWeight: '600',
     marginTop: 4,
   },
 });
-

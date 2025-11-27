@@ -6,6 +6,7 @@ const { router: charaRouter } = require("./chara");
 const { router: reportsRouter } = require("./reports");
 const { router: usersRouter } = require("./users");
 const { router: buyersRouter } = require("./buyers");
+const { router: sellersRouter } = require("./sellers");
 
 const appRouter = Router();
 
@@ -16,6 +17,7 @@ appRouter.use("/chara", charaRouter);
 appRouter.use("/reports", reportsRouter);
 appRouter.use("/users", usersRouter);
 appRouter.use("/buyers", buyersRouter);
+appRouter.use("/sellers", sellersRouter);
 
 function registerRoutes(app) {
   app.use(appRouter);
