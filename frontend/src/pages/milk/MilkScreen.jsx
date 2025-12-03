@@ -493,10 +493,10 @@ export default function MilkScreen({ onNavigate, onLogout }) {
         </View>
 
         <View style={[styles.summaryCard, transactionType === 'sale' ? styles.summaryCardSale : styles.summaryCardPurchase]}>
-          <Text style={styles.summaryTitle}>Total {transactionType === 'sale' ? 'Sales' : 'Purchases'}</Text>
-          <Text style={styles.summaryValue}>{formatCurrency(totalAmount)}</Text>
-          <Text style={styles.summarySubtext}>{totalQuantity.toFixed(2)} Liters</Text>
-          <Text style={styles.summarySubtext}>{filteredTransactions.length} Transactions</Text>
+          <Text style={styles.summaryTitle} numberOfLines={1}>Total {transactionType === 'sale' ? 'Sales' : 'Purchases'}</Text>
+          <Text style={styles.summaryValue} numberOfLines={1}>{formatCurrency(totalAmount)}</Text>
+          <Text style={styles.summarySubtext} numberOfLines={1}>{totalQuantity.toFixed(2)} Liters</Text>
+          <Text style={styles.summarySubtext} numberOfLines={1}>{filteredTransactions.length} Transactions</Text>
         </View>
 
         {/* Buyer List Button (only for sales) */}
@@ -1374,8 +1374,11 @@ const styles = StyleSheet.create({
   summaryCard: {
     borderRadius: 10,
     padding: 20,
+    paddingVertical: 24,
     marginBottom: 15,
     alignItems: 'center',
+    minHeight: 160,
+    justifyContent: 'center',
   },
   summaryCardPurchase: {
     backgroundColor: '#4CAF50',
@@ -1386,18 +1389,21 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: 16,
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   summaryValue: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   summarySubtext: {
     fontSize: 14,
     color: '#E8F5E9',
-    marginTop: 4,
+    marginTop: 6,
+    textAlign: 'center',
   },
   addButton: {
     borderRadius: 8,

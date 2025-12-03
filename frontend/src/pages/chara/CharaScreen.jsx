@@ -171,10 +171,10 @@ export default function CharaScreen({ onNavigate, onLogout }) {
         {viewType === 'purchase' ? (
           <>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Total Purchases</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(totalPurchases)}</Text>
-              <Text style={styles.summarySubtext}>{totalPurchaseQuantity.toFixed(2)} kg</Text>
-              <Text style={styles.summarySubtext}>{purchases.length} Transactions</Text>
+              <Text style={styles.summaryTitle} numberOfLines={1}>Total Purchases</Text>
+              <Text style={styles.summaryValue} numberOfLines={1}>{formatCurrency(totalPurchases)}</Text>
+              <Text style={styles.summarySubtext} numberOfLines={1}>{totalPurchaseQuantity.toFixed(2)} kg</Text>
+              <Text style={styles.summarySubtext} numberOfLines={1}>{purchases.length} Transactions</Text>
             </View>
 
             <TouchableOpacity
@@ -230,9 +230,9 @@ export default function CharaScreen({ onNavigate, onLogout }) {
         ) : (
           <>
             <View style={[styles.summaryCard, styles.summaryCardConsumption]}>
-              <Text style={styles.summaryTitle}>Total Consumption</Text>
-              <Text style={styles.summaryValue}>{totalConsumption.toFixed(2)} kg</Text>
-              <Text style={styles.summarySubtext}>{consumptions.length} Records</Text>
+              <Text style={styles.summaryTitle} numberOfLines={1}>Total Consumption</Text>
+              <Text style={styles.summaryValue} numberOfLines={1}>{totalConsumption.toFixed(2)} kg</Text>
+              <Text style={styles.summarySubtext} numberOfLines={1}>{consumptions.length} Records</Text>
             </View>
 
             <TouchableOpacity
@@ -485,8 +485,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     borderRadius: 10,
     padding: 20,
+    paddingVertical: 24,
     marginBottom: 15,
     alignItems: 'center',
+    minHeight: 160,
+    justifyContent: 'center',
   },
   summaryCardConsumption: {
     backgroundColor: '#FF9800',
@@ -494,18 +497,21 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: 16,
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   summaryValue: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   summarySubtext: {
     fontSize: 14,
     color: '#E8F5E9',
-    marginTop: 4,
+    marginTop: 6,
+    textAlign: 'center',
   },
   addButton: {
     backgroundColor: '#4CAF50',

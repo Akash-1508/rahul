@@ -3,14 +3,25 @@
  * Handle user login, signup, and authentication
  */
 
-import { apiClient, setAuthToken } from '../api/apiClient';
+import { apiClient, setAuthToken, getAuthToken } from '../api/apiClient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const USER_DATA_KEY = '@user_data';
 
 export const authService = {
   login: async (emailOrMobile, password) => {
     const res = await apiClient.post('/auth/login', { emailOrMobile, password });
     if (res?.token) {
-      setAuthToken(res.token);
-      // console.log('[authService] Token saved to apiClient');
+      await setAuthToken(res.token);
+      // Save user data to AsyncStorage
+      if (res.user) {
+        try {
+          await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(res.user));
+          console.log('[authService] User data saved to storage');
+        } catch (error) {
+          console.error('[authService] Error saving user data:', error);
+        }
+      }
     }
     return res.user;
   },
@@ -41,11 +52,32 @@ export const authService = {
   },
 
   logout: async () => {
-    setAuthToken(null);
+    await setAuthToken(null);
+    try {
+      await AsyncStorage.removeItem(USER_DATA_KEY);
+      console.log('[authService] User data removed from storage');
+    } catch (error) {
+      console.error('[authService] Error removing user data:', error);
+    }
   },
 
   getCurrentUser: async () => {
-    // No persistent storage yet; return null in this simple client
+    try {
+      const userData = await AsyncStorage.getItem(USER_DATA_KEY);
+      if (userData) {
+        return JSON.parse(userData);
+      }
+    } catch (error) {
+      console.error('[authService] Error getting user data:', error);
+    }
+    return null;
+  },
+
+  checkAuthToken: async () => {
+    const token = await getAuthToken();
+    if (token) {
+      return token;
+    }
     return null;
   },
 

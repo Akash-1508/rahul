@@ -236,26 +236,34 @@ export default function DashboardScreen({ onNavigate, onLogout }) {
 
             <View style={styles.chartCard}>
               <Text style={styles.cardHeading}>{trendDisplayLabel} Sales Trend</Text>
-              <View style={styles.chartBars}>
-                {salesTrend.map((item) => {
-                  const height = (item.totalAmount / maxTrendAmount) * 120;
-                  return (
-                    <View key={item.date} style={styles.chartColumn}>
-                      <View style={styles.chartBarBackground}>
-                        <View
-                          style={[
-                            styles.chartBar,
-                            { height: Math.max(height, 4) },
-                          ]}
-                        />
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chartScrollContent}
+              >
+                <View style={styles.chartBars}>
+                  {salesTrend.map((item) => {
+                    const height = (item.totalAmount / maxTrendAmount) * 120;
+                    // Adjust bar width based on period: weekly (7), monthly (30), yearly (12)
+                    const barWidth = trendPeriod === 'weekly' ? undefined : trendPeriod === 'monthly' ? 30 : 50;
+                    return (
+                      <View key={item.date} style={[styles.chartColumn, barWidth && { minWidth: barWidth }]}>
+                        <View style={styles.chartBarBackground}>
+                          <View
+                            style={[
+                              styles.chartBar,
+                              { height: Math.max(height, 4) },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.chartLabel} numberOfLines={1}>
+                          {item.label ?? item.date}
+                        </Text>
                       </View>
-                      <Text style={styles.chartLabel}>
-                        {item.label ?? item.date}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
               <Text style={styles.chartMeta}>
                 Last updated {new Date(summary.generatedAt).toLocaleDateString('en-IN', {
                   day: 'numeric',
@@ -487,16 +495,20 @@ const styles = StyleSheet.create({
     padding: 16,
     marginVertical: 8,
   },
+  chartScrollContent: {
+    paddingVertical: 8,
+  },
   chartBars: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'flex-end',
     height: 160,
+    paddingHorizontal: 4,
   },
   chartColumn: {
     alignItems: 'center',
-    flex: 1,
     marginHorizontal: 4,
+    minWidth: 35,
   },
   chartBarBackground: {
     height: 130,
@@ -514,8 +526,10 @@ const styles = StyleSheet.create({
   chartLabel: {
     marginTop: 6,
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
+    textAlign: 'center',
+    maxWidth: 60,
   },
   chartMeta: {
     color: 'rgba(255,255,255,0.9)',
